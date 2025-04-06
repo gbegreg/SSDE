@@ -125,6 +125,10 @@ type
     aniRedPlanet: TFloatAnimation;
     lmsRedPlanet: TLightMaterialSource;
     FontColorAnimation: TColorAnimation;
+    lblKeys: TLabel;
+    recPostIt: TRectangle;
+    Circle1: TCircle;
+    Layout1: TLayout;
     procedure FormCreate(Sender: TObject);
     procedure aniPrincipaleProcess(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);
@@ -209,6 +213,15 @@ end;
 procedure TfMain.FormCreate(Sender: TObject);
 begin
   randomize;
+  lblKeys.Text := '''
+  Z: Accelerate
+  S: Brake
+  Q: Left
+  D: Right
+  Space: fire
+  ESC: stop ship
+  Use the joystick (gray circle) with the mouse Orient ship and fire
+  ''';
   lblHowToPlay.text := '''
   You must destroy all alien saucers. For that :
     Accelerate     : Z or up arrow
@@ -645,6 +658,8 @@ begin
              layHUD.height := imgTableauBord.Height /4;
              layHUD2.Height := layHUD.height;
              layHUD2.Width := imgTableauBord.width /2.7;
+             recPostIt.Width := 3*layHUD2.Height/4;
+
            end;
     planet: begin
               layMenu.Visible := false;

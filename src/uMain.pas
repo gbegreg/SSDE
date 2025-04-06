@@ -16,10 +16,6 @@ type
 
   TfMain = class(TForm)
     GBEViewport3D: TGBEViewport3D;
-    layDroit: TLayout;
-    layInfos: TLayout;
-    lblEnnemis: TLabel;
-    lblMunitions: TLabel;
     GBEJoystick1: TGBEJoystick;
     dmyMonde: TDummy;
     Light1: TLight;
@@ -89,7 +85,7 @@ type
     dmyBluePlanet: TDummy;
     planetBlue: TSphere;
     aniPlanetBleue: TFloatAnimation;
-    Rectangle1: TRectangle;
+    screen: TRectangle;
     Label2: TLabel;
     dmyAnneauPlanet: TDummy;
     anneauPlanete: TSphere;
@@ -103,6 +99,10 @@ type
     lmsPlaneteGrise: TLightMaterialSource;
     lmsEnnemiToit: TLightMaterialSource;
     aniTitre: TFloatAnimation;
+    imgTableauBord: TImage;
+    layHUD: TLayout;
+    layJoystick: TLayout;
+    layHUD2: TLayout;
     procedure FormCreate(Sender: TObject);
     procedure aniPrincipaleProcess(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);
@@ -134,6 +134,7 @@ type
     { Déclarations privées }
   public
     { Déclarations publiques }
+    shield : integer;
     vitesse, vitesseTouche, demiHauteur, demiHauteurEnnemi : single;
     toucheDroite, toucheGauche, toucheAvancer, toucheReculer, toucheTir, tirPossible : boolean;
     listeBalles : TList<TTir>;
@@ -149,12 +150,9 @@ implementation
 
 procedure TfMain.aniPrincipaleProcess(Sender: TObject);
 begin
-  lblMunitions.Text := 'Munitions : '+ nbBalles.ToString;
-  lblEnnemis.Text := 'Ennemis : '+ nbEnnemisRestants.ToString;
-  Label2.text := 'Speed ' + copy(abs(vitesse*100).toString,0,3)+sLineBreak+
-                 GBEPlayerPosition.Position.x.ToString+sLineBreak+
-                 GBEPlayerPosition.Position.y.ToString+sLineBreak+
-                 GBEPlayerPosition.Position.z.ToString+sLineBreak;
+  Label2.text := 'Speed : ' + copy(abs(vitesse*100).toString,0,3)+sLineBreak+
+                 'Munitions : ' + nbBalles.ToString+sLineBreak+
+                 'Shield : ' + shield.ToString+'%';
   sky.position.x := dmyMonde.Position.x;
   sky.position.y := dmyMonde.Position.y;
   sky.position.z := dmyMonde.Position.z;
@@ -173,24 +171,14 @@ begin
     Q or Left arrow : turn left
     D or Right arrow : turn right
     ESC : stop
-    Left clic : fire
-    Use the virtual joystick with the mouse to orient the vessel
+    Space : fire
+    Use the virtual joystick with the mouse to orient the vessel and the shot
   ''';
   GBEJoystick1.Width := 0;
   GBEJoystick1.AutoCapture := true;
   GBEViewport3D.UsingDesignCamera := false;
   GBEViewport3D.Camera := GBEPlayerPosition.getCamera;
 //  hSol.loadHeightmapFromResource('heightmap');
-  vitesse := 0;
-  demiHauteur := GBEPlayerPosition.Height * 0.5;
-  GBEJoystick1.deplacement := Point3D(-1,1,1);
-  toucheDroite := false;
-  toucheGauche := false;
-  toucheAvancer := false;
-  toucheReculer := false;
-  toucheTir := false;
-  tirPossible := true;
-  nbBalles := maxBalles;
   listeBalles := TList<TTir>.create;
   listeAnimations := TList<TFloatAnimation>.create;
   nbEnnemisRestants := maxEnnemis;
@@ -262,6 +250,20 @@ end;
 
 procedure TfMain.btnPlayClick(Sender: TObject);
 begin
+  vitesse := 0;
+  shield := 100;
+  demiHauteur := GBEPlayerPosition.Height * 0.5;
+  GBEJoystick1.deplacement := Point3D(-1,1,1);
+  toucheDroite := false;
+  toucheGauche := false;
+  toucheAvancer := false;
+  toucheReculer := false;
+  toucheTir := false;
+  tirPossible := true;
+  nbBalles := maxBalles;
+  GBEPlayerPosition.Position.x := 0;
+  GBEPlayerPosition.Position.y := 0;
+  GBEPlayerPosition.position.z := 50;
   afficherScene(TScene.space);
 end;
 
@@ -318,23 +320,34 @@ end;
 
 procedure TfMain.GererDeplacementJoueur;
 begin
-  GBEPlayerPosition.NextPosition.Position.Point := GBEPlayerPosition.Position.Point - GBEJoystick1.direction * vitesse * Point3D(1,0,1);
+  GBEPlayerPosition.NextPosition.Position.Point := GBEPlayerPosition.Position.Point - GBEJoystick1.direction * vitesse * Point3D(1,1,1);
 //  GBEPlayerPosition.NextPosition.Position.Y := hSol.GetHeight(GBEPlayerPosition.NextPosition.Position.Point) + tailleJoueur  + demiHauteur;
 
-//  if collisionDummyChilds(dmyEnnemis, GBEPlayerPosition.NextPosition).bool then begin
-//    vitesse := 0;
-//    exit;
-//  end;
+  if collisionDummyChilds(dmyEnnemis, GBEPlayerPosition.NextPosition).bool then begin
+    vitesse := 0;
+    shield := shield -20;
+    exit;
+  end;
 
-//  if collisionDummyChilds(dmyStar, GBEPlayerPosition.NextPosition).bool then begin
-//    vitesse := 0;
-//    exit;
-//  end;
+  if collisionEntre2Objets(dmyStar, GBEPlayerPosition.NextPosition).bool then begin
+    vitesse := 0;
+    exit;
+  end;
 
-//  if collisionDummyChilds(dmyBluePlanet, GBEPlayerPosition.NextPosition).bool then begin
-//    vitesse := 0;
-//    exit;
-//  end;
+  if collisionEntre2Objets(dmyBluePlanet, GBEPlayerPosition.NextPosition).bool then begin
+    vitesse := 0;
+    exit;
+  end;
+
+  if collisionEntre2Objets(dmyAnneauPlanet, GBEPlayerPosition.NextPosition).bool then begin
+    vitesse := 0;
+    exit;
+  end;
+
+  if collisionEntre2Objets(dmyPlaneteGrise, GBEPlayerPosition.NextPosition).bool then begin
+    vitesse := 0;
+    exit;
+  end;
 
   GBEPlayerPosition.Position.Point := GBEPlayerPosition.NextPosition.Position.Point;
 end;
@@ -394,7 +407,7 @@ begin
     ennemi.corps.Depth := tailleEnnemi;
     ennemi.corps.RotationAngle.Z := 180;
     ennemi.Corps.Position.Point := Point3D(random(400)-200, 0, random(400)-200);
-    ennemi.Corps.Position.Y := 0;
+    ennemi.Corps.Position.Y := random(50)-25;
     ennemi.Corps.RotationAngle.Y := random(360);
     ennemi.Corps.Visible := true;
     ennemi.Corps.MaterialSource := lmsEnnemi;
@@ -424,7 +437,7 @@ begin
       uneAnimation.StartValue := ennemi.corps.Position.Point.Z;
     end;
 
-    uneAnimation.StopValue := random(360)-180;
+    uneAnimation.StopValue := random(400)-200;
     uneAnimation.Start;
     listeAnimations.Add(uneAnimation);
   end;
@@ -462,6 +475,9 @@ begin
              layMenu.Visible := false;
              laySpace.Visible := true;
              layPlanet.Visible := false;
+             layHUD.height := imgTableauBord.Height /4;
+             layHUD2.Height := layHUD.height;
+             layHUD2.Width := imgTableauBord.width /2.7;
            end;
     planet: begin
               layMenu.Visible := false;
@@ -472,6 +488,7 @@ begin
   aniPlanetBleue.enabled := laySpace.Visible;
   aniPlaneteGrise.enabled := laySpace.Visible;
   aniAnneauPlanet.enabled := laySpace.Visible;
+  aniTitre.Enabled := layMenu.Visible;
 end;
 
 end.

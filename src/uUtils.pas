@@ -22,7 +22,7 @@ const
   maxBalles = 999;
   vitesseTir = 1.5;
   porteeTir = 60;
-  maxEnnemis = 20;
+  maxEnnemis = 25;
   tailleEnnemi = 1;
 
 implementation

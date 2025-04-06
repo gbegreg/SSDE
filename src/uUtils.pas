@@ -7,6 +7,9 @@ type
   TEnnemi = record
     corps, toit : TSphere;
   end;
+  TBonus = record
+    caisse : TRectangle3D;
+  end;
   TTir = record
     portee, vitesse : single;
     projectile : TSphere;
@@ -14,15 +17,16 @@ type
   end;
 
 const
-  MAX_SPEED = 0.06;
+  MAX_SPEED = 0.15;
   MISSILE_SPEED = 0.2;
   MISSILE_RANGE = 8;
   accelerationTouche = 0.01;
   maxAccelerationTouche = 1;
-  maxBalles = 999;
+  maxBallesDepart = 20;
   vitesseTir = 1.5;
-  porteeTir = 60;
+  porteeTirEnnemi = 40;
   maxEnnemis = 25;
+  maxBonus = 25;
   tailleEnnemi = 1;
 
 implementation

@@ -103,6 +103,28 @@ type
     layHUD: TLayout;
     layJoystick: TLayout;
     layHUD2: TLayout;
+    dmyZoneDetection: TDummy;
+    cmsBalleEnnemi: TColorMaterialSource;
+    recMessage: TRectangle;
+    lblMessage: TLabel;
+    Rectangle1: TRectangle;
+    Label4: TLabel;
+    GlowEffect3: TGlowEffect;
+    dmyBonus: TDummy;
+    lmsBonusPorteeTir: TLightMaterialSource;
+    lmsBonusPuissanceTir: TLightMaterialSource;
+    lmsBonusBouclier: TLightMaterialSource;
+    lmsBonusMunitions: TLightMaterialSource;
+    Rectangle3D1: TRectangle3D;
+    lmsBonusMunitionsCote: TLightMaterialSource;
+    lmsBonusPorteetirCote: TLightMaterialSource;
+    lmsBonusPuissanceTirCote: TLightMaterialSource;
+    lmsBonusBouclierCote: TLightMaterialSource;
+    dmyRedPlanet: TDummy;
+    redPlanet: TSphere;
+    aniRedPlanet: TFloatAnimation;
+    lmsRedPlanet: TLightMaterialSource;
+    FontColorAnimation: TColorAnimation;
     procedure FormCreate(Sender: TObject);
     procedure aniPrincipaleProcess(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);
@@ -117,6 +139,7 @@ type
     procedure Label15Click(Sender: TObject);
     procedure btnOkCreditsClick(Sender: TObject);
     procedure Label8Click(Sender: TObject);
+    procedure Rectangle1Click(Sender: TObject);
   private
     procedure TournerADroite;
     procedure TournerAGauche;
@@ -127,18 +150,22 @@ type
     procedure GererTir;
     procedure Tirer;
     procedure ChargerEnnemis;
-    procedure deplacerEnnemi(Sender: TObject);
     function DetecterCollisionBalleEnnemis(balle: TSphere): TGBECollisionRetour;
     procedure GererVitesseTouche(sensibilite: single);
     procedure afficherScene(scene: TScene);
+    procedure GererTirEnnemis;
+    procedure TirEnnemi(direction,positionDepart: TPoint3D);
+    function DetecterCollisionTirEnnemis(balle: TSphere): TGBECollisionRetour;
+    procedure ChargerBonus;
     { Déclarations privées }
   public
     { Déclarations publiques }
-    shield : integer;
+    shield, porteeTir : integer;
+    tirEnnemiEnCours : boolean;
     vitesse, vitesseTouche, demiHauteur, demiHauteurEnnemi : single;
     toucheDroite, toucheGauche, toucheAvancer, toucheReculer, toucheTir, tirPossible : boolean;
-    listeBalles : TList<TTir>;
-    nbBalles, nbEnnemisRestants : integer;
+    listeBalles, listeBallesEnnemis : TList<TTir>;
+    nbBalles, nbEnnemisRestants, puissanceTir : integer;
     listeAnimations : TList<TFloatAnimation>;
   end;
 
@@ -152,27 +179,45 @@ procedure TfMain.aniPrincipaleProcess(Sender: TObject);
 begin
   Label2.text := 'Speed : ' + copy(abs(vitesse*100).toString,0,3)+sLineBreak+
                  'Munitions : ' + nbBalles.ToString+sLineBreak+
-                 'Shield : ' + shield.ToString+'%';
+                 'Shield : ' + shield.ToString+'%'+sLineBreak+sLineBreak+
+                 'Nb of enemies :'+nbEnnemisRestants.ToString+sLineBreak;
   sky.position.x := dmyMonde.Position.x;
   sky.position.y := dmyMonde.Position.y;
   sky.position.z := dmyMonde.Position.z;
+  dmyZoneDetection.Position.X := GBEPlayerPosition.Position.x;
+  dmyZoneDetection.Position.Y := GBEPlayerPosition.Position.Y;
+  dmyZoneDetection.Position.Z := GBEPlayerPosition.Position.Z;
   GererTouche;
   GererTir;
+  GererTirEnnemis;
   GererDeplacementJoueur;
+
+  if shield <= 20 then FontColorAnimation.start
+  else FontColorAnimation.stop;
+
+  if shield <= 0 then begin
+     lblMessage.text := 'You no longer have a shield.'+sLineBreak+'Game over...';
+     recMessage.visible := true;
+  end;
+  if nbEnnemisRestants = 0 then begin
+     lblMessage.text := 'you killed all the enemies.'+sLineBreak+'Good game, you win !';
+     recMessage.visible := true;
+  end;
+
 end;
 
 procedure TfMain.FormCreate(Sender: TObject);
 begin
   randomize;
   lblHowToPlay.text := '''
-  To play the game :
-    Z or up arrow : accelerate
-    S or down arrow : brake
-    Q or Left arrow : turn left
-    D or Right arrow : turn right
-    ESC : stop
-    Space : fire
-    Use the virtual joystick with the mouse to orient the vessel and the shot
+  You must destroy all alien saucers. For that :
+    Accelerate     : Z or up arrow
+    Brake          : S or down arrow
+    Turn Left      : Q or Left arrow
+    Trun right     : D or Right arrow
+    Immediate stop : ESC
+    Fire           : Space
+    Orient ship and fire : Use the joystick (gray circle) with the mouse.
   ''';
   GBEJoystick1.Width := 0;
   GBEJoystick1.AutoCapture := true;
@@ -180,6 +225,7 @@ begin
   GBEViewport3D.Camera := GBEPlayerPosition.getCamera;
 //  hSol.loadHeightmapFromResource('heightmap');
   listeBalles := TList<TTir>.create;
+  listeBallesEnnemis := TList<TTir>.create;
   listeAnimations := TList<TFloatAnimation>.create;
   nbEnnemisRestants := maxEnnemis;
   demiHauteurEnnemi := tailleEnnemi * 0.5;
@@ -189,6 +235,7 @@ end;
 procedure TfMain.FormDestroy(Sender: TObject);
 begin
   listeBalles.Free;
+  listeBallesEnnemis.Free;
   listeAnimations.Free;
 end;
 
@@ -252,6 +299,8 @@ procedure TfMain.btnPlayClick(Sender: TObject);
 begin
   vitesse := 0;
   shield := 100;
+  porteeTir := 60;
+  recMessage.Visible := false;
   demiHauteur := GBEPlayerPosition.Height * 0.5;
   GBEJoystick1.deplacement := Point3D(-1,1,1);
   toucheDroite := false;
@@ -260,7 +309,7 @@ begin
   toucheReculer := false;
   toucheTir := false;
   tirPossible := true;
-  nbBalles := maxBalles;
+  nbBalles := maxBallesDepart;
   GBEPlayerPosition.Position.x := 0;
   GBEPlayerPosition.Position.y := 0;
   GBEPlayerPosition.position.z := 50;
@@ -270,6 +319,11 @@ end;
 procedure TfMain.btnQuitterClick(Sender: TObject);
 begin
   close;
+end;
+
+procedure TfMain.Rectangle1Click(Sender: TObject);
+begin
+  afficherScene(TScene.menu);
 end;
 
 procedure TfMain.Reculer;
@@ -325,12 +379,34 @@ begin
 
   if collisionDummyChilds(dmyEnnemis, GBEPlayerPosition.NextPosition).bool then begin
     vitesse := 0;
-    shield := shield -20;
+    shield := shield -1;
     exit;
+  end;
+
+  if not(tirEnnemiEnCours) then begin
+    var ennemi := collisionDummyChilds(dmyEnnemis, dmyZoneDetection);
+    if ennemi.bool then begin
+      tirEnnemiEnCours := true;
+      var directionTirEnnemi := Point3D(1,-1,-1) * (GBEPlayerPosition.getPositionDirection.AbsolutePosition - GBEPlayerPosition.AbsolutePosition).Normalize;
+      tirEnnemi(directionTirEnnemi, (ennemi.objet as TSphere).position.Point);
+      exit;
+    end;
   end;
 
   if collisionEntre2Objets(dmyStar, GBEPlayerPosition.NextPosition).bool then begin
     vitesse := 0;
+    exit;
+  end;
+
+  var unBonus := collisionDummyChilds(dmyBonus, GBEPlayerPosition.NextPosition);
+  if unBonus.bool then begin
+    case unBonus.objet.Tag of
+      1: if shield < 100 then shield := shield + 20;
+      2: inc(nbBalles,30);
+      3: porteeTir := porteeTir + 10;
+      4: inc(puissanceTir);
+    end;
+    unBonus.objet.free;
     exit;
   end;
 
@@ -362,13 +438,37 @@ begin
     if (balle.projectile.Position.Point.X > (balle.positionDepart.X + balle.portee)) or
        (balle.projectile.Position.Point.X < (balle.positionDepart.X - balle.portee)) or
        (balle.projectile.Position.Point.Z > (balle.positionDepart.Z + balle.portee)) or
-       (balle.projectile.Position.Point.Z < (balle.positionDepart.Z - balle.portee)) then balleADetruire := true;
-//    if balle.projectile.Position.Y < hSol.GetHeight(balle.projectile.Position.Point) then balleADetruire := true;
-    if DetecterCollisionBalleEnnemis(balle.projectile).bool then balleADetruire := true;
+       (balle.projectile.Position.Point.Z < (balle.positionDepart.Z - balle.portee)) then balleADetruire := true
+    else begin
+      if DetecterCollisionBalleEnnemis(balle.projectile).bool then balleADetruire := true;
+    end;
 
     if balleADetruire then begin
       balle.projectile.Visible := false;
       listeBalles.Remove(balle);
+    end;
+  end;
+end;
+
+procedure TfMain.GererTirEnnemis;
+var balle : TTir;
+    balleADetruire : boolean;
+begin
+  for balle in listeBallesEnnemis do begin
+    balleADetruire := false;
+    balle.projectile.Position.Point := balle.projectile.Position.Point + balle.direction;
+    if (balle.projectile.Position.Point.X > (balle.positionDepart.X + balle.portee)) or
+       (balle.projectile.Position.Point.X < (balle.positionDepart.X - balle.portee)) or
+       (balle.projectile.Position.Point.Z > (balle.positionDepart.Z + balle.portee)) or
+       (balle.projectile.Position.Point.Z < (balle.positionDepart.Z - balle.portee)) then balleADetruire := true
+    else begin
+      if DetecterCollisionTirEnnemis(balle.projectile).bool then balleADetruire := true;
+    end;
+
+    if balleADetruire then begin
+      balle.projectile.Visible := false;
+      listeBallesEnnemis.Remove(balle);
+      tirEnnemiEnCours := false;
     end;
   end;
 end;
@@ -396,6 +496,23 @@ begin
   end;
 end;
 
+procedure TfMain.TirEnnemi(direction, positionDepart : TPoint3D);
+var balle : TTir;
+begin
+    balle.projectile := TSphere.Create(nil);
+    balle.projectile.Parent := hsol;
+    balle.vitesse := vitesseTir;
+    balle.portee := porteeTirEnnemi;
+    balle.projectile.MaterialSource := cmsBalleEnnemi;
+    balle.projectile.Width := 0.2;
+    balle.projectile.Depth := 0.2;
+    balle.projectile.Height := 0.2;
+    balle.positionDepart := positionDepart;
+    balle.direction := direction * balle.vitesse;
+    balle.projectile.Position.Point := balle.positionDepart;
+    listeBallesEnnemis.Add(balle);
+end;
+
 procedure TfMain.ChargerEnnemis;
 begin
   for var I := 0 to maxEnnemis -1 do begin
@@ -406,11 +523,12 @@ begin
     ennemi.corps.Height := 0.3;
     ennemi.corps.Depth := tailleEnnemi;
     ennemi.corps.RotationAngle.Z := 180;
-    ennemi.Corps.Position.Point := Point3D(random(400)-200, 0, random(400)-200);
+    ennemi.Corps.Position.Point := Point3D(random(300)-150, 0, random(300)-150);
     ennemi.Corps.Position.Y := random(50)-25;
     ennemi.Corps.RotationAngle.Y := random(360);
     ennemi.Corps.Visible := true;
     ennemi.Corps.MaterialSource := lmsEnnemi;
+    ennemi.Corps.Tag := 3;
     ennemi.toit := TSphere.Create(nil);
     ennemi.toit.Parent := ennemi.corps;
     ennemi.toit.Width := tailleEnnemi*0.5;
@@ -428,7 +546,6 @@ begin
     uneAnimation.AutoReverse := true;
     uneAnimation.Loop := true;
     uneAnimation.Duration := random(8)*6+15;
-    uneAnimation.OnProcess := deplacerEnnemi;
     if random(10) mod 2 = 0 then begin
       uneAnimation.PropertyName := 'Position.X';
       uneAnimation.StartValue := ennemi.corps.Position.Point.X;
@@ -443,21 +560,68 @@ begin
   end;
 end;
 
-procedure TfMain.deplacerEnnemi(Sender: TObject);
+procedure TfMain.ChargerBonus;
 begin
-//  if (sender is TFloatAnimation) then begin
-//    ((sender as TFloatAnimation).Parent as TSPhere).Position.y := hSol.GetHeight(((sender as TFloatAnimation).Parent as TSPhere).Position.Point) + demiHauteurEnnemi;
-//  end;
+  for var I := 0 to maxBonus -1 do begin
+    var bonus : TBonus;
+    bonus.caisse := TRectangle3D.Create(nil);
+    bonus.caisse.Parent := dmyBonus;
+    bonus.caisse.Width := 0.5;
+    bonus.caisse.Height := 0.5;
+    bonus.caisse.Depth := 0.5;
+    bonus.caisse.RotationAngle.Z := 180;
+    bonus.caisse.Position.Point := Point3D(random(300)-150, 0, random(300)-150);
+    bonus.caisse.Position.Y := random(50)-25;
+    bonus.caisse.RotationAngle.Y := random(360);
+    bonus.caisse.RotationAngle.X := random(360);
+    bonus.caisse.RotationAngle.Z := random(360);
+    bonus.caisse.Visible := true;
+
+    if i mod 7 = 0 then begin
+      bonus.caisse.Tag := 3;
+      bonus.caisse.MaterialSource := lmsBonusPorteeTir;
+      bonus.caisse.MaterialBackSource := lmsBonusPorteeTir;
+      bonus.caisse.MaterialShaftSource := lmsBonusPorteeTirCote;
+    end else begin
+      if i mod 8 = 0 then begin
+        bonus.caisse.Tag := 4;
+        bonus.caisse.MaterialSource := lmsBonusPuissanceTir;
+        bonus.caisse.MaterialBackSource := lmsBonusPuissanceTir;
+        bonus.caisse.MaterialShaftSource := lmsBonusPuissanceTirCote;
+      end else begin
+        if i mod 3 = 0 then begin
+          bonus.caisse.Tag := 1;
+          bonus.caisse.MaterialSource := lmsBonusBouclier;
+          bonus.caisse.MaterialBackSource := lmsBonusBouclier;
+          bonus.caisse.MaterialShaftSource := lmsBonusBouclierCote;
+        end else begin
+          bonus.caisse.Tag := 2;
+          bonus.caisse.MaterialSource := lmsBonusMunitions;
+          bonus.caisse.MaterialBackSource := lmsBonusMunitions;
+          bonus.caisse.MaterialShaftSource := lmsBonusMunitionsCote;
+        end;
+      end;
+    end;
+  end;
 end;
 
 function TfMain.DetecterCollisionBalleEnnemis(balle : TSphere): TGBECollisionRetour;
 begin
   result := collisionDummyChilds(dmyEnnemis, balle);
   if result.bool then begin
-    listeAnimations.Remove(result.objet.Children[1] as TFloatanimation);
-    (result.objet as TSphere).Visible := false;
-    dec(nbEnnemisRestants);
+    result.objet.Tag := result.objet.Tag - puissanceTir;
+    if result.objet.tag <= 0 then begin
+      listeAnimations.Remove(result.objet.Children[1] as TFloatanimation);
+      (result.objet as TSphere).Visible := false;
+      dec(nbEnnemisRestants);
+    end;
   end;
+end;
+
+function TfMain.DetecterCollisionTirEnnemis(balle : TSphere): TGBECollisionRetour;
+begin
+  result := collisionEntre2Objets(balle, GBEPlayerPosition.NextPosition);
+  if result.bool then shield := shield - 10;
 end;
 
 procedure TfMain.afficherScene(scene: TScene);
@@ -467,11 +631,14 @@ begin
             laySpace.Visible := false;
             layMenu.Visible := true;
             layPlanet.Visible := false;
+            aniPrincipale.Enabled := false;
             aniFond.start;
           end;
     space: begin
              chargerEnnemis;
+             ChargerBonus;
              aniPrincipale.Start;
+             puissanceTir := 1;
              layMenu.Visible := false;
              laySpace.Visible := true;
              layPlanet.Visible := false;
@@ -483,12 +650,15 @@ begin
               layMenu.Visible := false;
               laySpace.Visible := false;
               layPlanet.Visible := true;
+              aniPrincipale.Enabled := false;
             end;
   end;
   aniPlanetBleue.enabled := laySpace.Visible;
   aniPlaneteGrise.enabled := laySpace.Visible;
   aniAnneauPlanet.enabled := laySpace.Visible;
+  aniRedPlanet.enabled := laySpace.Visible;
   aniTitre.Enabled := layMenu.Visible;
+  tirEnnemiEnCours := false;
 end;
 
 end.

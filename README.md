@@ -11,5 +11,5 @@ You need to install my GBE3D components suite (https://github.com/gbegreg/GBE3D)
 
 The games is under development ;)
 <br>
-<img src="./capture1.png" />
+<img src="./capture4.png" />
 

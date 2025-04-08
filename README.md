@@ -9,7 +9,8 @@ This project is my participation in Ludum Dare 57
 
 You need to install my GBE3D components suite (https://github.com/gbegreg/GBE3D) to compile this project.
 
-The games is under development ;)
+The game is available on the Ludum Dare project's page : https://ldjam.com/events/ludum-dare/57/in-solar-system-depths
+
 <br>
 <img src="./capture4.png" />
 
